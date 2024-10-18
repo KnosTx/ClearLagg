@@ -13,6 +13,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, xml
+
+      - name: Install dependencies
+        run: composer install --no-dev --optimize-autoloader --ignore-platform-req=ext-chunkutils2 --ignore-platform-req=ext-crypto --ignore-platform-req=ext-leveldb --ignore-platform-req=ext-morton --ignore-platform-req=ext-pmmpthread
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: nurazliyt
+          password: ${{ secrets.TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/nurazliyt/clearlagg:latest .
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/nurazliyt/clearlagg:latest
+
+      - name: Extract ClearLagg.phar from Docker image
+        run: |
+          container_id=$(docker create ghcr.io/${{ github.repository_owner }}/clearlagg:latest)
+          docker cp $container_id:/usr/src/myapp/ClearLagg.phar ./builds/ClearLagg.phar
+          docker rm $container_id
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+        with:
+          tag_name: 1.0.0
+          name: Release 1.0.0
+          files: builds/ClearLagg.phar
+          draft: false
+          prerelease: false
+
     - name: Checkout repository
       uses: actions/checkout@v4
 
@@ -75,3 +121,4 @@ jobs:
 
     - name: Run PocketMine-MP with ClearLagg
       run: ./bin/php7/bin/php PocketMine-MP.phar --no-wizard --disable-ansi
+
